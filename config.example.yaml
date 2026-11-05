@@ -1,0 +1,32 @@
+# AdHush config. Anything left out uses the default shown in adhush/config.py.
+
+tv:
+  # samsung      - recommended: exact mute on/off over UPnP when the TV supports
+  #                it, otherwise presses MUTE through the remote-control API
+  # samsung_upnp - UPnP only
+  # samsung_ws   - remote-control API only
+  # dry_run      - log what would happen, never touch the TV
+  backend: dry_run
+  host: 192.168.1.50   # your TV's IP: TV Settings > General > Network > Network Status
+
+camera:
+  source: 0            # /dev/video0. On a laptop you can use a file: frames/ad.jpg
+  width: 1280
+  height: 720
+
+detector:
+  check_interval: 1.0  # seconds between checks
+  ocr_scale: 2.5       # bigger = reads smaller text, but slower
+  # Regions are easiest to set by drawing them on the setup page
+  # (http://<pi>:8080). They are saved to regions.yaml next to this file.
+
+controller:
+  mute_after: 2        # badge seen this many checks in a row -> mute
+  unmute_after: 3      # badge gone this many checks in a row -> unmute
+  max_mute_seconds: 240
+
+web:
+  enabled: true
+  port: 8080
+
+log_level: INFO

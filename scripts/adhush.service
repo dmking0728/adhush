@@ -1,0 +1,17 @@
+[Unit]
+Description=AdHush - mute TV ads using a webcam
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=__USER__
+SupplementaryGroups=video
+Environment=ADHUSH_CONFIG=/etc/adhush/config.yaml
+ExecStart=/opt/adhush/venv/bin/adhush run
+Restart=always
+RestartSec=5
+# Be nice to the Pi Zero: keep SSH and the rest responsive.
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adhush"
+version = "0.1.0"
+description = "Point a webcam at your TV; AdHush mutes it whenever an ad comes on."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+# OpenCV and numpy come from apt on the Pi (python3-opencv); on a laptop
+# install the "dev" extra.
+dependencies = ["pyyaml>=5.4"]
+
+[project.optional-dependencies]
+samsung = ["samsungtvws>=2.6"]
+dev = ["pytest>=7", "numpy", "opencv-python-headless"]
+
+[project.scripts]
+adhush = "adhush.cli:main"
+
+[tool.setuptools]
+packages = ["adhush"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

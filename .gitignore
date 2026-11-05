@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.DS_Store
+
+# local config, drawn regions, TV pairing token and captured frames
+config.yaml
+regions.yaml
+tv-token*.txt
+frames/
+snapshot.jpg

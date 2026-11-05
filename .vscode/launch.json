@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AdHush: dry run with Mac webcam",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "adhush",
+      "args": ["--dry-run", "-v", "run"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "AdHush: detect on an image",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "adhush",
+      "args": ["detect", "${input:imagePath}"],
+      "console": "integratedTerminal"
+    }
+  ],
+  "inputs": [
+    { "id": "imagePath", "type": "promptString", "description": "Path to a TV photo", "default": "frames/ad.jpg" }
+  ]
+}
