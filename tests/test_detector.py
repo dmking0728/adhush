@@ -10,7 +10,11 @@ matcher = TextMatcher(DEFAULTS["detector"]["patterns"])
 
 @pytest.mark.parametrize(
     "text",
-    ["Ad", "AD 0:30", "Ad 1 of 3 · 0:45", "Ads 2/4", "Ad • 1:15", "Advertisement", "ad|0:12"],
+    [
+        "Ad", "AD 0:30", "Ad 1 of 3 · 0:45", "Ads 2/4", "Ad • 1:15", "Advertisement", "ad|0:12",
+        # real OCR misreads: lost spaces, 1 read as i or l
+        "Adiof3 0:45", "Adlof2", "Ad0:30", "Ad 2of4",
+    ],
 )
 def test_ad_badges_match(text):
     assert matcher.match(text)
@@ -18,7 +22,10 @@ def test_ad_badges_match(text):
 
 @pytest.mark.parametrize(
     "text",
-    ["", "Bad Day", "Ready", "Adam", "Episode 4", "Skip Intro", "HEADLINE", "Up Next 0:15"],
+    [
+        "", "Bad Day", "Ready", "Adam", "Episode 4", "Skip Intro", "HEADLINE", "Up Next 0:15",
+        "adios", "Adam 1:30", "Season 1 of 3", "load 1 of 3",
+    ],
 )
 def test_normal_text_does_not_match(text):
     assert matcher.match(text) is None

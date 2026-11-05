@@ -33,9 +33,12 @@ DEFAULTS: dict[str, Any] = {
         "ocr_scale": 2.5,  # upscale crops before OCR; small text reads better
         "min_contrast": 12.0,  # skip OCR on near-blank crops (saves CPU)
         "tesseract_psm": 6,
+        # OCR drops spaces and mixes up 1/i/l, so "Ad 1 of 3" may come back as
+        # "Adiof3". These patterns allow for that.
         "patterns": [
             r"\bad\b",  # "Ad", "AD"
-            r"\bads?\s*\d+\s*(of|/)\s*\d+",  # "Ad 1 of 3", "Ads 2/4"
+            r"\bads?\s*[0-9il|]{1,2}\s*(of|/)\s*[0-9il|]{1,2}",  # "Ad 1 of 3", "Adiof3", "Ads 2/4"
+            r"\bads?\s*[:\-]?\s*\d{1,2}:\d{2}",  # "Ad 0:30", "Ad0:30"
             r"\badvertisement\b",
             r"\bcommercial\b",
         ],
