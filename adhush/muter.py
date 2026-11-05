@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import re
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Protocol
@@ -100,8 +101,17 @@ class SamsungWsMuter:
             from samsungtvws import SamsungTVWS  # pip install samsungtvws
 
             Path(self.token_file).parent.mkdir(parents=True, exist_ok=True)
+            # The first connection waits while the TV shows "Allow AdHush?",
+            # so give a person time to reach the remote.
+            paired = Path(self.token_file).exists()
+            if not paired:
+                log.info("Pairing: choose Allow on the TV within 30 seconds")
             self._tv = SamsungTVWS(
-                host=self.host, port=8002, token_file=self.token_file, name="AdHush", timeout=5
+                host=self.host,
+                port=8002,
+                token_file=self.token_file,
+                name="AdHush",
+                timeout=5 if paired else 30,
             )
         return self._tv
 
@@ -134,17 +144,25 @@ class SamsungAutoMuter:
     def __init__(self, host: str, token_file: str):
         self.upnp = SamsungUpnpMuter(host)
         self.ws = SamsungWsMuter(host, token_file, probe=self.upnp)
+        # Many Tizen TVs answer GetMute but reject SetMute with HTTP 500.
+        # Once the TV says no, stop asking and use the MUTE key.
+        self.upnp_set_supported = True
 
     def get_mute(self) -> bool | None:
         return self.ws.get_mute()  # UPnP state if available, else tracked
 
     def set_mute(self, muted: bool) -> None:
-        try:
-            self.upnp.set_mute(muted)
-            self.ws.assumed = muted
-        except Exception as e:
-            log.debug("UPnP mute failed (%s); using remote-control API", e)
-            self.ws.set_mute(muted)
+        if self.upnp_set_supported:
+            try:
+                self.upnp.set_mute(muted)
+                self.ws.assumed = muted
+                return
+            except urllib.error.HTTPError as e:
+                log.info("TV rejected UPnP SetMute (HTTP %s); using the MUTE key from now on", e.code)
+                self.upnp_set_supported = False
+            except Exception as e:
+                log.debug("UPnP mute failed (%s); using remote-control API", e)
+        self.ws.set_mute(muted)
 
 
 def build_muter(cfg: dict[str, Any]) -> Muter:
