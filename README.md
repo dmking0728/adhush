@@ -36,7 +36,7 @@ Expect a 2–4 second delay at the start and end of each break (a bit more on a 
 2. SSH in and install:
    ```bash
    sudo apt install -y git
-   git clone https://github.com/<your-username>/adhush.git
+   git clone https://github.com/dmking0728/adhush.git
    cd adhush
    sudo ./scripts/install.sh
    ```

@@ -2,7 +2,7 @@
 # Install AdHush on a Raspberry Pi (Raspberry Pi OS Bookworm or later) as an
 # always-on service that starts at boot and restarts itself if it crashes.
 #
-#   git clone https://github.com/<you>/adhush.git && cd adhush
+#   git clone https://github.com/dmking0728/adhush.git && cd adhush
 #   sudo ./scripts/install.sh
 set -euo pipefail
 
