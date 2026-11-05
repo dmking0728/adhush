@@ -13,3 +13,6 @@ regions.yaml
 tv-token*.txt
 frames/
 snapshot.jpg
+
+# personal setup checklist (home network details)
+CHECKLIST.md
