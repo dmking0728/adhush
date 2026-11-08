@@ -68,7 +68,7 @@ DEFAULTS: dict[str, Any] = {
         # Same two waits once AdHush has learned what the badge looks like and
         # checks for it several times a second: it no longer misreads, so it
         # can unmute almost as soon as the badge goes away.
-        "unmute_after_seconds_picture": 1.0,
+        "unmute_after_seconds_picture": 1.5,
         "unmute_between_ads_seconds_picture": 4,
         "max_mute_seconds": 240,  # safety net: never stay muted longer
     },

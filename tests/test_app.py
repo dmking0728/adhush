@@ -101,3 +101,20 @@ def test_no_false_mute_on_normal_picture(tmp_path):
     app.controller.set_enabled(True)
     events = run(app, clock, [show_frame(500 + i) for i in range(40)])
     assert events == []
+
+
+def test_learned_pill_matches_over_light_background(tmp_path):
+    """The pill picture must not include the background around it: a version
+    learned on black scored 0.40 when the badge sat over a pale pink scene."""
+    from adhush.templates import BadgeTemplates
+    from adhush.detector import TesseractOCR
+
+    bt = BadgeTemplates(tmp_path / "badges")
+    region = {"name": "max", "box": MAX_BOX}
+    assert bt.learn(cv2.imread(str(Path(__file__).with_name("max_ad_frame.jpg"))), region, TesseractOCR(psm=11))
+    badge = cv2.imread(str(Path(__file__).with_name("max_ad_frame.jpg")))
+    for bg in [(200, 190, 235), (120, 200, 220), (30, 30, 30)]:  # pink, yellow, dark (BGR)
+        frame = np.full((720, 1280, 3), bg, np.uint8)
+        frame[46:63, 98:125] = badge[46:63, 98:125]  # the yellow pill with its dark "Ad"
+        assert bt.score(frame, [region])[0] > bt.threshold, bg
+    assert bt.score(show_frame(7), [region])[0] < 0.5

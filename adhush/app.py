@@ -40,7 +40,7 @@ class App:
             c["max_mute_seconds"],
             c.get("unmute_after_seconds", 3),
             c.get("unmute_between_ads_seconds", 12),
-            c.get("unmute_after_seconds_picture", 1.0),
+            c.get("unmute_after_seconds_picture", 1.5),
             c.get("unmute_between_ads_seconds_picture", 4),
         )
         d = cfg["detector"]
@@ -83,7 +83,10 @@ class App:
         if self.templates:
             score, _ = self.templates.score(frame, regions)
             self.picture_score = score
-            picture_hit = score >= self.templates.threshold
+            # Hysteresis: once muted, a slightly weaker match still means the
+            # badge is there (lighting and the video behind it shift the score).
+            bar = self.templates.threshold * (0.8 if self.controller.muted_by_us else 1.0)
+            picture_hit = score >= bar
         elif ocr is None:
             return  # nothing new to decide on
 

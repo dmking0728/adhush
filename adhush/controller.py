@@ -37,7 +37,7 @@ class MuteController:
         max_mute_seconds: float = 240,
         unmute_after_seconds: float = 3,
         unmute_between_ads_seconds: float = 12,
-        unmute_after_seconds_picture: float = 1.0,
+        unmute_after_seconds_picture: float = 1.5,
         unmute_between_ads_seconds_picture: float = 4,
         clock: Callable[[], float] = time.monotonic,
     ):

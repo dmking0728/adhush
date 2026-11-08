@@ -33,7 +33,7 @@ def _gray(img):
 
 
 class BadgeTemplates:
-    def __init__(self, folder: str | Path | None, threshold: float = 0.8, scale: float = 2.5):
+    def __init__(self, folder: str | Path | None, threshold: float = 0.7, scale: float = 2.5):
         self.folder = Path(folder).expanduser() if folder else None
         self.threshold = float(threshold)
         self.scale = float(scale)
@@ -82,8 +82,9 @@ class BadgeTemplates:
                     best, where = float(s), region["name"]
         return best, where
 
-    def matches(self, frame, regions: list[dict[str, Any]]) -> bool:
-        return self.score(frame, regions)[0] >= self.threshold
+    def matches(self, frame, regions: list[dict[str, Any]], still_there: bool = False) -> bool:
+        """still_there: the badge was just seen, so accept a weaker match."""
+        return self.score(frame, regions)[0] >= self.threshold * (0.8 if still_there else 1.0)
 
     def learn(self, frame, region: dict[str, Any], ocr: Callable[..., str]) -> bool:
         """Look for an "Ad" pill in this box and remember it. True if a new one was saved."""
@@ -100,15 +101,16 @@ class BadgeTemplates:
         binary, _ = preprocess_unflipped(patch, self.scale)
         gray = _gray(patch)
         for x, y, w, h in pill_boxes(binary):
-            # back to unscaled pixels, with a small margin
-            x0 = max(0, int(x / self.scale) - 2)
-            y0 = max(0, int(y / self.scale) - 2)
-            x1 = min(gray.shape[1], int((x + w) / self.scale) + 2)
-            y1 = min(gray.shape[0], int((y + h) / self.scale) + 2)
-            pill = gray[y0:y1, x0:x1]
-            if pill.size == 0:
+            # Back to unscaled pixels. OCR the pill with a little margin, but
+            # save only its inside: the background around a pill changes with
+            # the video (a dark margin scored 0.4 over a pink scene).
+            x0, y0 = int(x / self.scale), int(y / self.scale)
+            x1, y1 = int((x + w) / self.scale), int((y + h) / self.scale)
+            outer = gray[max(0, y0 - 2) : y1 + 2, max(0, x0 - 2) : x1 + 2]
+            pill = gray[y0 + 1 : y1 - 1, x0 + 1 : x1 - 1]
+            if pill.shape[0] < 8 or pill.shape[1] < 8:
                 continue
-            text, _ = preprocess(pill, self.scale * 2)
+            text, _ = preprocess(outer, self.scale * 2)
             if not AD_WORD.search(ocr(text, psm=8) or ""):  # 8: a single word
                 continue
             self.folder.mkdir(parents=True, exist_ok=True)
