@@ -36,6 +36,7 @@ class Detection:
     strong: bool = False
     position: tuple[int, int] | None = None  # (ad number, ads in break): "2 of 3"
     remaining: int | None = None  # countdown seconds left in this ad, ":07"
+    frame_time: float = 0.0  # time.monotonic() when the frame was grabbed
 
 
 # OCR reads "1 of 3" as "10f3", "1of3", "iof3"; the countdown as ":07", ".07", " 07".
@@ -108,20 +109,28 @@ def _flip_pills(binary):
     which Tesseract can't read. Flipping inside the box makes it black-on-white
     like the rest.
     """
+    for x, y, w, h in pill_boxes(binary):
+        binary[y : y + h, x : x + w] = 255 - binary[y : y + h, x : x + w]
+    return binary
+
+
+def pill_boxes(binary) -> list[tuple[int, int, int, int]]:
+    """(x, y, w, h) of solid, wider-than-tall boxes with text punched out."""
     import cv2
 
     ink = (binary == 0).astype("uint8")
     n, _, stats, _ = cv2.connectedComponentsWithStats(ink, connectivity=8)
+    boxes = []
     for i in range(1, n):
-        x, y, w, h, area = stats[i]
+        x, y, w, h, area = (int(v) for v in stats[i])
         if w < 12 or h < 12 or w < 1.2 * h:
             continue  # letters ("o", "0") are about as wide as tall; pills are wider
         box = binary[y : y + h, x : x + w]
         fill = area / (w * h)
         holes = (box == 255).mean()
         if fill > 0.7 and holes > 0.05:
-            binary[y : y + h, x : x + w] = 255 - box
-    return binary
+            boxes.append((x, y, w, h))
+    return boxes
 
 
 class TesseractOCR:
@@ -154,24 +163,32 @@ class TesseractOCR:
         self.cmd = ["tesseract", "stdin", "stdout", "--psm", str(psm), "-l", lang]
         self.timeout = timeout
 
-    def __call__(self, img) -> str:
+    def __call__(self, img, psm: int | None = None) -> str:
+        """psm overrides the page mode for this call (8 = a single word)."""
         if self.api is not None:
             import numpy as np
 
             img = np.ascontiguousarray(img)
             h, w = img.shape[:2]
-            self.api.SetImageBytes(img.tobytes(), w, h, 1, w)
-            self.api.SetSourceResolution(300)  # else it logs "Estimating resolution" every box
-            return self.api.GetUTF8Text()
+            old = self.api.GetPageSegMode()
+            if psm is not None:
+                self.api.SetPageSegMode(psm)
+            try:
+                self.api.SetImageBytes(img.tobytes(), w, h, 1, w)
+                self.api.SetSourceResolution(300)  # else it logs "Estimating resolution" every box
+                return self.api.GetUTF8Text()
+            finally:
+                self.api.SetPageSegMode(old)
 
         import cv2
 
         ok, buf = cv2.imencode(".png", img)
         if not ok:
             return ""
-        out = subprocess.run(
-            self.cmd, input=buf.tobytes(), capture_output=True, timeout=self.timeout
-        )
+        cmd = list(self.cmd)
+        if psm is not None:
+            cmd[cmd.index("--psm") + 1] = str(psm)
+        out = subprocess.run(cmd, input=buf.tobytes(), capture_output=True, timeout=self.timeout)
         return out.stdout.decode("utf-8", "replace")
 
 

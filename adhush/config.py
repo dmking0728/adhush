@@ -29,7 +29,11 @@ DEFAULTS: dict[str, Any] = {
         "height": 720,
     },
     "detector": {
-        "check_interval": 1.0,  # seconds between checks (Pi Zero W is slow)
+        "check_interval": 1.0,  # seconds between text-reading checks (Pi Zero W is slow)
+        # Once an app's "Ad" pill has been seen, AdHush remembers its picture
+        # (in a "badges" folder next to the config) and looks for it this often.
+        "picture_check_interval": 0.25,
+        "picture_match_threshold": 0.7,
         "ocr_scale": 2.5,  # upscale crops before OCR; small text reads better
         "min_contrast": 12.0,  # skip OCR on near-blank crops (saves CPU)
         "tesseract_psm": 11,  # sparse text: a badge in an otherwise empty box
@@ -61,6 +65,11 @@ DEFAULTS: dict[str, Any] = {
         # If the last badge said more ads are coming ("1 of 3"), wait this long
         # instead: apps show a few seconds without a badge between ads.
         "unmute_between_ads_seconds": 12,
+        # Same two waits once AdHush has learned what the badge looks like and
+        # checks for it several times a second: it no longer misreads, so it
+        # can unmute almost as soon as the badge goes away.
+        "unmute_after_seconds_picture": 1.0,
+        "unmute_between_ads_seconds_picture": 4,
         "max_mute_seconds": 240,  # safety net: never stay muted longer
     },
     "tv": {

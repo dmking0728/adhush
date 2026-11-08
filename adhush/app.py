@@ -15,6 +15,7 @@ from adhush.config import save_regions, validate_regions
 from adhush.controller import MuteController
 from adhush.detector import AdDetector, Detection
 from adhush.muter import build_muter
+from adhush.templates import BadgeTemplates
 
 log = logging.getLogger(__name__)
 
@@ -39,9 +40,22 @@ class App:
             c["max_mute_seconds"],
             c.get("unmute_after_seconds", 3),
             c.get("unmute_between_ads_seconds", 12),
+            c.get("unmute_after_seconds_picture", 1.0),
+            c.get("unmute_between_ads_seconds_picture", 4),
+        )
+        d = cfg["detector"]
+        badges_dir = d.get("badges_dir") or (
+            Path(cfg["_config_path"]).with_name("badges") if cfg.get("_config_path") else None
+        )
+        self.templates = BadgeTemplates(
+            badges_dir, float(d.get("picture_match_threshold", 0.7)), float(d.get("ocr_scale", 2.5))
         )
         self.frame = None
+        self.frame_time = 0.0
+        self._frame_ready = threading.Event()
+        self._new_detection: Detection | None = None  # OCR result not yet fed to the controller
         self.detection: Detection | None = None
+        self.picture_score = 0.0
         self._last_debug_save = 0.0
         self.events: deque[dict[str, Any]] = deque(maxlen=50)
         self.started = time.time()
@@ -50,26 +64,78 @@ class App:
         self.events.appendleft({"t": time.time(), "event": name})
 
     def step(self) -> None:
+        """Grab a frame, check it for a remembered badge picture, feed the controller.
+
+        Text reading (OCR) runs in its own thread on the latest frame, because
+        it takes ~1 s on a Pi Zero; its results are folded in here as they come.
+        """
         frame = self.camera.read()
         if frame is None:
             return
-        detection = self.detector.detect(frame)
+        now = time.monotonic()
         with self.lock:
-            self.frame = frame
-            self.detection = detection
-            if self.controller.muted_by_us and not detection.is_ad:
-                # Misses during an ad show what OCR read, to tune patterns.
-                texts = {r.name: r.text for r in detection.regions if r.text}
-                log.info("No badge this check while muted: %s", texts)
-            event = self.controller.update(
-                detection.is_ad, detection.strong, detection.position, detection.remaining
+            self.frame, self.frame_time = frame, now
+            ocr, self._new_detection = self._new_detection, None
+            regions = list(self.detector.regions)
+        self._frame_ready.set()
+
+        picture_hit = False
+        if self.templates:
+            score, _ = self.templates.score(frame, regions)
+            self.picture_score = score
+            picture_hit = score >= self.templates.threshold
+        elif ocr is None:
+            return  # nothing new to decide on
+
+        is_ad, strong, position, remaining = picture_hit, False, None, None
+        if ocr is not None:
+            # Where a badge picture is known, it is the judge; a bare "ad" read
+            # by OCR there (say, in a subtitle) is ignored. A full badge counts.
+            known = {r["name"] for r in regions if self.templates.templates.get(r["name"])}
+            ocr_ad = any(
+                r.matched and (ocr.strong or r.name not in known) for r in ocr.regions
             )
+            is_ad = is_ad or ocr_ad
+            if ocr_ad:
+                strong = ocr.strong
+                position = ocr.position
+                if ocr.remaining is not None and not picture_hit:
+                    remaining = max(0, ocr.remaining - (now - ocr.frame_time))
+            with self.lock:
+                if self.controller.muted_by_us and not is_ad:
+                    texts = {r.name: r.text for r in ocr.regions if r.text}
+                    log.info("No badge this check while muted (picture %.2f): %s", self.picture_score, texts)
+
+        with self.lock:
+            event = self.controller.update(is_ad, strong, position, remaining, picture=picture_hit)
             if event:
                 self._event(event)
+
+    def ocr_step(self) -> None:
+        """Read the badge text on the latest frame (runs in the OCR thread)."""
+        if not self._frame_ready.wait(1.0):
+            return
+        self._frame_ready.clear()
+        with self.lock:
+            frame, frame_time = self.frame, self.frame_time
+        if frame is None:
+            return
+        detection = self.detector.detect(frame)
+        detection.frame_time = frame_time
+        if detection.strong:
+            for r in detection.regions:
+                if r.matched:
+                    region = next((x for x in self.detector.regions if x["name"] == r.name), None)
+                    if region:
+                        self.templates.learn(frame, region, self.detector.ocr)
+        with self.lock:
+            self.detection = detection
+            self._new_detection = detection
         self._maybe_save_debug_frame(frame, detection)
         log.debug(
-            "ad=%s %.2fs %s",
+            "ad=%s strong=%s %.2fs %s",
             detection.is_ad,
+            detection.strong,
             detection.seconds,
             {r.name: r.text for r in detection.regions if r.text},
         )
@@ -101,17 +167,34 @@ class App:
         except Exception:
             log.exception("Could not save debug frame")
 
-    def run(self) -> None:
+    def _ocr_loop(self) -> None:
         interval = float(self.cfg["detector"]["check_interval"])
-        log.info("AdHush running: TV backend=%s, %d regions", self.muter.name, len(self.detector.regions))
         while not self.stop.is_set():
             start = time.monotonic()
             try:
-                self.step()
+                self.ocr_step()
             except Exception:
                 log.exception("Check failed")
                 self.stop.wait(2)
             self.stop.wait(max(0.0, interval - (time.monotonic() - start)))
+
+    def run(self) -> None:
+        d = self.cfg["detector"]
+        log.info("AdHush running: TV backend=%s, %d regions", self.muter.name, len(self.detector.regions))
+        ocr_thread = threading.Thread(target=self._ocr_loop, name="ocr", daemon=True)
+        ocr_thread.start()
+        while not self.stop.is_set():
+            start = time.monotonic()
+            # Check pictures often once a badge is known; otherwise only as
+            # often as OCR can keep up.
+            interval = float(d.get("picture_check_interval", 0.25) if self.templates else d["check_interval"])
+            try:
+                self.step()
+            except Exception:
+                log.exception("Picture check failed")
+                self.stop.wait(2)
+            self.stop.wait(max(0.0, interval - (time.monotonic() - start)))
+        ocr_thread.join(timeout=5)
         with self.lock:
             if self.controller.muted_by_us:
                 self.controller.set_enabled(False)  # don't leave the TV muted on exit
@@ -129,6 +212,8 @@ class App:
                 "suppressed": ctl.suppressed,
                 "is_ad": bool(d and d.is_ad),
                 "check_seconds": round(d.seconds, 2) if d else None,
+                "badge_pictures": sorted(k for k, v in self.templates.templates.items() if v),
+                "picture_score": round(self.picture_score, 2),
                 "backend": self.muter.name,
                 "regions": self.detector.regions,
                 "region_results": [

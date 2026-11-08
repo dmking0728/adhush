@@ -37,6 +37,8 @@ class MuteController:
         max_mute_seconds: float = 240,
         unmute_after_seconds: float = 3,
         unmute_between_ads_seconds: float = 12,
+        unmute_after_seconds_picture: float = 1.0,
+        unmute_between_ads_seconds_picture: float = 4,
         clock: Callable[[], float] = time.monotonic,
     ):
         self.muter = muter
@@ -45,6 +47,9 @@ class MuteController:
         self.max_mute_seconds = float(max_mute_seconds)
         self.unmute_after_seconds = float(unmute_after_seconds)
         self.unmute_between_ads_seconds = float(unmute_between_ads_seconds)
+        self.unmute_after_seconds_picture = float(unmute_after_seconds_picture)
+        self.unmute_between_ads_seconds_picture = float(unmute_between_ads_seconds_picture)
+        self.picture_seen = False  # badge confirmed by picture match (reliable)
         self.clock = clock
 
         self.enabled = True
@@ -64,18 +69,22 @@ class MuteController:
         strong: bool = False,
         position: tuple[int, int] | None = None,
         remaining: int | None = None,
+        picture: bool = False,
     ) -> str | None:
         """Feed one detection result. Returns an event name when something happened.
 
         strong: the full badge was read, so one check is enough to mute.
         position: (ad number, ads in this break), e.g. (1, 3).
         remaining: countdown seconds left in this ad.
+        picture: the badge was found by picture match, which doesn't misread,
+            so a short wait after it disappears is enough.
         """
         now = self.clock()
         if is_ad:
             self.ad_streak += 1
             self.clear_streak = 0
             self.last_ad_at = now
+            self.picture_seen = picture
             if position:
                 self.more_ads_coming = position[0] < position[1]
             if remaining is not None:
@@ -84,7 +93,14 @@ class MuteController:
             self.clear_streak += 1
             self.ad_streak = 0
 
-        quiet = self.unmute_between_ads_seconds if self.more_ads_coming else self.unmute_after_seconds
+        if self.picture_seen:
+            quiet = (
+                self.unmute_between_ads_seconds_picture
+                if self.more_ads_coming
+                else self.unmute_after_seconds_picture
+            )
+        else:
+            quiet = self.unmute_between_ads_seconds if self.more_ads_coming else self.unmute_after_seconds
         clear = (
             self.clear_streak >= self.unmute_after
             and now - self.last_ad_at >= quiet
