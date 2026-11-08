@@ -99,3 +99,63 @@ def test_misreads_during_ad_do_not_unmute_before_quiet_time():
     check(True)  # badge read again
     events = [check(False) for _ in range(5)]  # ad really over
     assert events == [None, None, None, None, "unmuted"] and not muter.muted
+
+
+def test_full_badge_mutes_on_first_check():
+    ctl, muter, _ = make()
+    assert ctl.update(True, strong=True, position=(1, 3)) == "muted" and muter.muted
+
+
+def test_bare_ad_still_needs_two_checks():
+    ctl, muter, _ = make()
+    assert ctl.update(True) is None and not muter.muted
+
+
+def test_real_max_break_from_log():
+    """Replays the 13:37 Max ad break: times and what each check matched.
+
+    It should mute on the first full badge, ride out the gaps between ads and
+    the misreads, and unmute ~3 s after the last ad's badge goes away.
+    """
+    ctl, muter, clock = make(unmute_after_seconds=3, unmute_between_ads_seconds=12)
+    A = lambda pos, rem=None: (True, True, pos, rem)  # noqa: E731
+    miss = (False, False, None, None)
+    timeline = [
+        (15.6, A((1, 3), 24)),
+        (16.9, A((1, 3), 22)),
+        (19.3, A((1, 3), 20)),
+        (20.7, A((1, 3), 18)),
+        (24.4, A((1, 3), 15)),
+        (27.0, miss),  # no badge for a moment
+        (29.6, A((1, 3), 10)),
+        (34.7, miss),
+        (37.0, A((1, 3), 2)),
+        (38.2, A((1, 3), 1)),
+        # gap between ad 1 and ad 2: no badge for several seconds
+        (40.0, miss), (42.0, miss), (44.0, miss), (46.0, miss),
+        (49.5, A((2, 3), 8)),
+        (52.6, A((2, 3), 1)),
+        (53.0, miss), (54.7, miss), (55.6, miss),
+        (58.6, A((3, 3), 25)),
+        (60.8, miss),
+        (67.0, miss), (67.2, miss), (68.2, miss), (70.3, miss), (71.3, miss),
+        (74.9, A((3, 3), 9)),
+        (78.9, A((3, 3), 5)),
+    ]
+    events = []
+    for t, (is_ad, strong, pos, rem) in timeline:
+        clock.t = t
+        e = ctl.update(is_ad, strong, pos, rem)
+        if e:
+            events.append((t, e))
+    assert events == [(15.6, "muted")]  # stayed muted the whole break
+    # Ad ends at ~83.9 (78.9 + 5 s countdown). Checks keep coming every ~1 s.
+    t = 79.9
+    while not events[-1][1] == "unmuted":
+        clock.t = t
+        e = ctl.update(False)
+        if e:
+            events.append((t, e))
+        t += 1.0
+        assert t < 100
+    assert 83.9 <= events[-1][0] <= 85.0, events

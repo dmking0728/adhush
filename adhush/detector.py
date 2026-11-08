@@ -31,6 +31,30 @@ class Detection:
     is_ad: bool
     regions: list[RegionResult] = field(default_factory=list)
     seconds: float = 0.0
+    # The badge's own format was read ("1 of 3", "Ad 0:30"), not just a bare
+    # "ad", so it is safe to mute on this one check.
+    strong: bool = False
+    position: tuple[int, int] | None = None  # (ad number, ads in break): "2 of 3"
+    remaining: int | None = None  # countdown seconds left in this ad, ":07"
+
+
+# OCR reads "1 of 3" as "10f3", "1of3", "iof3"; the countdown as ":07", ".07", " 07".
+_DIGIT = {"i": 1, "l": 1, "I": 1}
+_POSITION = re.compile(r"([0-9il])\s*[o0]f\s*([0-9il])(?![0-9])\W{0,4}(?:\d?\s*[:.])?\s*(\d{2})?", re.I)
+_STRONG = re.compile(
+    r"[0-9il]\s*[o0]f\s*[0-9il]|\bads?\s*[:\-]?\s*\d{1,2}:\d{2}|\badvertisement\b", re.I
+)
+
+
+def parse_badge(text: str) -> tuple[tuple[int, int] | None, int | None]:
+    """("1 of 3 :07") -> ((1, 3), 7). Either part is None if not readable."""
+    m = _POSITION.search(text)
+    if not m:
+        return None, None
+    n, total = (_DIGIT.get(g, None) or int(g) for g in m.group(1, 2))
+    position = (n, total) if 0 < n <= total <= 9 else None
+    remaining = int(m.group(3)) if m.group(3) and int(m.group(3)) <= 60 else None
+    return position, remaining
 
 
 class TextMatcher:
@@ -178,8 +202,14 @@ class AdDetector:
             results.append(res)
             if res.matched:
                 break  # one badge is enough; save the Pi some work
-        return Detection(
+        det = Detection(
             is_ad=any(r.matched for r in results),
             regions=results,
             seconds=time.monotonic() - start,
         )
+        for r in results:
+            if r.matched:
+                text = TextMatcher.normalize(r.text)
+                det.strong = bool(_STRONG.search(text))
+                det.position, det.remaining = parse_badge(text)
+        return det

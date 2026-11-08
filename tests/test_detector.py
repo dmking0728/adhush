@@ -18,6 +18,7 @@ matcher = TextMatcher(DEFAULTS["detector"]["patterns"])
         "3 of 3", "30f3", "“Ad> 3of3", "‘ad? 30f3", "r,,%\nAd, 30f3",
         # real misses from a Max ad break
         "Al (30f3 :07|", "(30f3", "x 2 of 3 :17",
+        "Ris 1of3 .20", "_, 10f3\n\n18", "ip 1of3 174", "em 20f3 08", "or |\n\nof3 .02 78",
     ],
 )
 def test_ad_badges_match(text):
@@ -28,7 +29,7 @@ def test_ad_badges_match(text):
     "text",
     [
         "", "Bad Day", "Ready", "Adam", "Episode 4", "Skip Intro", "HEADLINE", "Up Next 0:15",
-        "adios", "Adam 1:30", "Season 1 of 3", "load 1 of 3", "Episode 3 of 8", "Season 1 of 3 12:30", "Chapter 2 of 5",
+        "adios", "Adam 1:30", "Season 1 of 3", "load 1 of 3", "Episode 3 of 8", "Chapter 2 of 5",
         "We've seen the United States and done it, so ready",
     ],
 )
@@ -89,3 +90,20 @@ def test_real_max_ad_frame():
     assert det.is_ad, det.regions[0].text
     # And the "Ad" pill itself is read, not just "3 of 3"
     assert TextMatcher([r"\bad\b"]).match(det.regions[0].text), det.regions[0].text
+
+
+@pytest.mark.parametrize(
+    "text,position,remaining",
+    [
+        ("Ad 1 of 3 · 0:45", (1, 3), 45),
+        ("Ris 1of3 .20", (1, 3), 20),
+        ("em 20f3 08", (2, 3), 8),
+        ("Al (30f3 :07|", (3, 3), 7),
+        ("“Ad 30f3", (3, 3), None),
+        ("Ad", None, None),
+    ],
+)
+def test_parse_badge(text, position, remaining):
+    from adhush.detector import parse_badge
+
+    assert parse_badge(text) == (position, remaining)

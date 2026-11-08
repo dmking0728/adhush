@@ -42,17 +42,25 @@ DEFAULTS: dict[str, Any] = {
             # A box that *starts* with "3 of 3" (Max's badge, when OCR misses
             # the "Ad" pill). Anchored so "Season 1 of 3" doesn't count.
             r"^\W*[0-9il]{1,2}\s*[o0]f\s*[0-9il]{1,2}\b",
-            # "3 of 3 :07" - ad position plus countdown, wherever it is
-            r"[0-9il]{1,2}\s*[o0]f\s*[0-9il]{1,2}\W{0,3}\s*:\s*[0-5]\d\b",
+            # "3 of 3 :07" - ad position plus countdown, wherever it is. OCR
+            # often loses the colon ("1of3 .20", "20f3 08") or the first digit
+            # ("of3 :10").
+            r"[0-9il]{1,2}\s*[o0]f\s*[0-9il]{1,2}\W{0,4}[:.]?\s*\d{2,3}\b",
+            r"\b[o0]f\s*[0-9il]\W{0,4}[:.]\s*\d{2}\b",
             r"\badvertisement\b",
             r"\bcommercial\b",
         ],
         "regions": DEFAULT_REGIONS,
     },
     "controller": {
-        "mute_after": 2,  # ad seen this many checks in a row -> mute
-        "unmute_after": 3,  # no ad this many checks in a row -> unmute
-        "unmute_after_seconds": 8,  # ...and for at least this long
+        # A bare "ad" must be seen this many checks in a row. A full badge
+        # ("Ad 1 of 3", "1 of 3 :20") mutes on the first check.
+        "mute_after": 2,
+        "unmute_after": 2,  # no ad this many checks in a row -> unmute
+        "unmute_after_seconds": 3,  # ...and for at least this long
+        # If the last badge said more ads are coming ("1 of 3"), wait this long
+        # instead: apps show a few seconds without a badge between ads.
+        "unmute_between_ads_seconds": 12,
         "max_mute_seconds": 240,  # safety net: never stay muted longer
     },
     "tv": {

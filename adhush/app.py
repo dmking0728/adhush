@@ -37,7 +37,8 @@ class App:
             c["mute_after"],
             c["unmute_after"],
             c["max_mute_seconds"],
-            c.get("unmute_after_seconds", 8),
+            c.get("unmute_after_seconds", 3),
+            c.get("unmute_between_ads_seconds", 12),
         )
         self.frame = None
         self.detection: Detection | None = None
@@ -60,7 +61,9 @@ class App:
                 # Misses during an ad show what OCR read, to tune patterns.
                 texts = {r.name: r.text for r in detection.regions if r.text}
                 log.info("No badge this check while muted: %s", texts)
-            event = self.controller.update(detection.is_ad)
+            event = self.controller.update(
+                detection.is_ad, detection.strong, detection.position, detection.remaining
+            )
             if event:
                 self._event(event)
         self._maybe_save_debug_frame(frame, detection)
