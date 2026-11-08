@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from collections import deque
+from pathlib import Path
 from typing import Any
 
 from adhush.camera import Camera
@@ -15,6 +17,10 @@ from adhush.detector import AdDetector, Detection
 from adhush.muter import build_muter
 
 log = logging.getLogger(__name__)
+
+# Text that hints at an ad badge even when the "Ad" word itself wasn't read:
+# "3 of 3", "30f3", "0:30". Only used to decide which frames to save.
+AD_LIKE = re.compile(r"\d\s*[o0]f\s*\d|\d:\d\d", re.IGNORECASE)
 
 
 class App:
@@ -31,6 +37,7 @@ class App:
         )
         self.frame = None
         self.detection: Detection | None = None
+        self._last_debug_save = 0.0
         self.events: deque[dict[str, Any]] = deque(maxlen=50)
         self.started = time.time()
 
@@ -48,12 +55,40 @@ class App:
             event = self.controller.update(detection.is_ad)
             if event:
                 self._event(event)
+        self._maybe_save_debug_frame(frame, detection)
         log.debug(
             "ad=%s %.2fs %s",
             detection.is_ad,
             detection.seconds,
             {r.name: r.text for r in detection.regions if r.text},
         )
+
+    def _maybe_save_debug_frame(self, frame, detection: Detection) -> None:
+        opts = self.cfg.get("debug_frames") or {}
+        folder = opts.get("dir")
+        if not folder:
+            return
+        texts = " ".join(r.text for r in detection.regions if r.text)
+        if not (detection.is_ad or AD_LIKE.search(texts)):
+            return
+        now = time.time()
+        if now - self._last_debug_save < float(opts.get("min_seconds_apart", 20)):
+            return
+        self._last_debug_save = now
+        try:
+            import cv2
+
+            d = Path(folder).expanduser()
+            d.mkdir(parents=True, exist_ok=True)
+            tag = "ad" if detection.is_ad else "maybe"
+            name = time.strftime("%Y%m%d-%H%M%S") + f"-{tag}.jpg"
+            cv2.imwrite(str(d / name), frame)
+            log.info("Saved %s frame %s (text: %r)", tag, name, texts[:60])
+            old = sorted(d.glob("*.jpg"))[: -int(opts.get("keep", 60))]
+            for p in old:
+                p.unlink()
+        except Exception:
+            log.exception("Could not save debug frame")
 
     def run(self) -> None:
         interval = float(self.cfg["detector"]["check_interval"])

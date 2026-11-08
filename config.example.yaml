@@ -30,3 +30,7 @@ web:
   port: 8080
 
 log_level: INFO
+
+# Save frames that look ad-related, to see what each app's badge looks like.
+# debug_frames:
+#   dir: ~/adhush-frames

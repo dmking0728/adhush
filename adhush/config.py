@@ -58,6 +58,9 @@ DEFAULTS: dict[str, Any] = {
         "token_file": "~/.config/adhush/tv-token.txt",
     },
     "web": {"enabled": True, "host": "0.0.0.0", "port": 8080},
+    # Save camera frames that look ad-related (a match, or text like "3 of 3"
+    # or "0:30") so you can see what the badge looks like and tune boxes.
+    "debug_frames": {"dir": "", "min_seconds_apart": 20, "keep": 60},
     "log_level": "INFO",
 }
 
