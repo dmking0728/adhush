@@ -75,9 +75,14 @@ def cmd_snapshot(cfg, out: str) -> int:
     from adhush.camera import Camera
 
     cam = Camera(cfg["camera"]["source"], cfg["camera"]["width"], cfg["camera"]["height"])
+    # Webcams need a few frames for auto-exposure; HDMI capture sticks send
+    # solid black frames for a few seconds after opening. Wait for a real one.
     frame = None
-    for _ in range(10):  # let auto-exposure settle
+    deadline = time.monotonic() + 15
+    for i in range(300):
         frame = cam.read()
+        if time.monotonic() > deadline or (frame is not None and i >= 10 and frame.std() > 2):
+            break
     cam.close()
     if frame is None:
         print("No frame from camera", file=sys.stderr)

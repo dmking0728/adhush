@@ -21,7 +21,7 @@ echo "==> Installing system packages (OpenCV, Tesseract OCR)"
 apt-get update
 apt-get install -y --no-install-recommends \
   python3 python3-venv python3-pip python3-opencv python3-numpy python3-yaml \
-  tesseract-ocr tesseract-ocr-eng v4l-utils
+  tesseract-ocr tesseract-ocr-eng python3-tesserocr v4l-utils
 
 echo "==> Creating virtualenv in $APP_DIR"
 mkdir -p "$APP_DIR"

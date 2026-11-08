@@ -7,12 +7,15 @@ Raspberry Pi Zero, and it does not depend on what the ad itself looks like.
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -74,16 +77,44 @@ def preprocess(img, scale: float):
 
 
 class TesseractOCR:
+    """Runs Tesseract on a grayscale crop.
+
+    Uses tesserocr when it is installed (Pi: python3-tesserocr), which keeps the
+    model loaded between checks: ~0.5 s per box on a Pi Zero instead of ~7 s,
+    since starting the tesseract program reloads the model every time. Falls
+    back to running the tesseract program.
+    """
+
     def __init__(self, psm: int = 6, lang: str = "eng", timeout: float = 15):
+        self.api = None
+        try:
+            import tesserocr
+
+            self.api = tesserocr.PyTessBaseAPI(lang=lang, psm=psm)
+            log.info("OCR: tesserocr (model stays loaded)")
+            return
+        except ImportError:
+            pass
+        except Exception as e:  # e.g. language data not found
+            log.warning("tesserocr failed to start (%s); using the tesseract program", e)
         if not shutil.which("tesseract"):
             raise RuntimeError(
                 "tesseract is not installed (Pi: sudo apt install tesseract-ocr, "
                 "Mac: brew install tesseract)"
             )
+        log.info("OCR: tesseract program (slower; install python3-tesserocr to speed up)")
         self.cmd = ["tesseract", "stdin", "stdout", "--psm", str(psm), "-l", lang]
         self.timeout = timeout
 
     def __call__(self, img) -> str:
+        if self.api is not None:
+            import numpy as np
+
+            img = np.ascontiguousarray(img)
+            h, w = img.shape[:2]
+            self.api.SetImageBytes(img.tobytes(), w, h, 1, w)
+            return self.api.GetUTF8Text()
+
         import cv2
 
         ok, buf = cv2.imencode(".png", img)
