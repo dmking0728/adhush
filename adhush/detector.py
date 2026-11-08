@@ -137,6 +137,7 @@ class TesseractOCR:
             img = np.ascontiguousarray(img)
             h, w = img.shape[:2]
             self.api.SetImageBytes(img.tobytes(), w, h, 1, w)
+            self.api.SetSourceResolution(300)  # else it logs "Estimating resolution" every box
             return self.api.GetUTF8Text()
 
         import cv2
