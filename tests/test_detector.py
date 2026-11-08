@@ -16,6 +16,8 @@ matcher = TextMatcher(DEFAULTS["detector"]["patterns"])
         "Adiof3 0:45", "Adlof2", "Ad0:30", "Ad 2of4",
         # Max: yellow "Ad" pill + "3 of 3"
         "3 of 3", "30f3", "“Ad> 3of3", "‘ad? 30f3", "r,,%\nAd, 30f3",
+        # real misses from a Max ad break
+        "Al (30f3 :07|", "(30f3", "x 2 of 3 :17",
     ],
 )
 def test_ad_badges_match(text):
@@ -26,7 +28,7 @@ def test_ad_badges_match(text):
     "text",
     [
         "", "Bad Day", "Ready", "Adam", "Episode 4", "Skip Intro", "HEADLINE", "Up Next 0:15",
-        "adios", "Adam 1:30", "Season 1 of 3", "load 1 of 3", "Episode 3 of 8",
+        "adios", "Adam 1:30", "Season 1 of 3", "load 1 of 3", "Episode 3 of 8", "Season 1 of 3 12:30", "Chapter 2 of 5",
         "We've seen the United States and done it, so ready",
     ],
 )

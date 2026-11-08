@@ -41,7 +41,9 @@ DEFAULTS: dict[str, Any] = {
             r"\bads?\s*[:\-]?\s*\d{1,2}:\d{2}",  # "Ad 0:30", "Ad0:30"
             # A box that *starts* with "3 of 3" (Max's badge, when OCR misses
             # the "Ad" pill). Anchored so "Season 1 of 3" doesn't count.
-            r"^[0-9il]{1,2}\s*[o0]f\s*[0-9il]{1,2}\b",
+            r"^\W*[0-9il]{1,2}\s*[o0]f\s*[0-9il]{1,2}\b",
+            # "3 of 3 :07" - ad position plus countdown, wherever it is
+            r"[0-9il]{1,2}\s*[o0]f\s*[0-9il]{1,2}\W{0,3}\s*:\s*[0-5]\d\b",
             r"\badvertisement\b",
             r"\bcommercial\b",
         ],
@@ -50,6 +52,7 @@ DEFAULTS: dict[str, Any] = {
     "controller": {
         "mute_after": 2,  # ad seen this many checks in a row -> mute
         "unmute_after": 3,  # no ad this many checks in a row -> unmute
+        "unmute_after_seconds": 8,  # ...and for at least this long
         "max_mute_seconds": 240,  # safety net: never stay muted longer
     },
     "tv": {

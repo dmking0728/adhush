@@ -2,7 +2,10 @@
 
 Rules, in plain words:
 * Mute after the ad badge shows up `mute_after` checks in a row.
-* Unmute after it is gone `unmute_after` checks in a row.
+* Unmute after it is gone `unmute_after` checks in a row *and* for at least
+  `unmute_after_seconds`. OCR misreads the badge now and then, and on a slow
+  Pi three misses in a row can take only a few seconds; the time rule keeps
+  one blurry stretch from unmuting in the middle of an ad.
 * Only unmute if AdHush did the muting. If you muted the TV yourself before
   the ad, AdHush leaves it muted.
 * Never stay muted longer than `max_mute_seconds`. If that trips, it is
@@ -28,12 +31,14 @@ class MuteController:
         mute_after: int = 2,
         unmute_after: int = 3,
         max_mute_seconds: float = 240,
+        unmute_after_seconds: float = 8,
         clock: Callable[[], float] = time.monotonic,
     ):
         self.muter = muter
         self.mute_after = max(1, int(mute_after))
         self.unmute_after = max(1, int(unmute_after))
         self.max_mute_seconds = float(max_mute_seconds)
+        self.unmute_after_seconds = float(unmute_after_seconds)
         self.clock = clock
 
         self.enabled = True
@@ -41,6 +46,7 @@ class MuteController:
         self.muted_at = 0.0
         self.ad_streak = 0
         self.clear_streak = 0
+        self.last_ad_at = float("-inf")
         self.ad_handled = False  # this ad break was already dealt with
         self.suppressed = False  # safety timeout tripped; wait for a clear screen
 
@@ -49,11 +55,15 @@ class MuteController:
         if is_ad:
             self.ad_streak += 1
             self.clear_streak = 0
+            self.last_ad_at = self.clock()
         else:
             self.clear_streak += 1
             self.ad_streak = 0
 
-        clear = self.clear_streak >= self.unmute_after
+        clear = (
+            self.clear_streak >= self.unmute_after
+            and self.clock() - self.last_ad_at >= self.unmute_after_seconds
+        )
         if clear:
             self.ad_handled = False
             self.suppressed = False

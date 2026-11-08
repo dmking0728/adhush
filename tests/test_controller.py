@@ -11,6 +11,7 @@ class Clock:
 
 
 def make(**kw):
+    kw.setdefault("unmute_after_seconds", 0)  # most tests count checks only
     muter, clock = DryRunMuter(), Clock()
     ctl = MuteController(muter, mute_after=2, unmute_after=3, max_mute_seconds=100, clock=clock, **kw)
     return ctl, muter, clock
@@ -82,3 +83,19 @@ def test_retries_after_mute_error():
     muter = Flaky()
     ctl = MuteController(muter, mute_after=2, unmute_after=3)
     assert [ctl.update(True) for _ in range(3)] == [None, "error", "muted"]
+
+
+def test_misreads_during_ad_do_not_unmute_before_quiet_time():
+    """Real Max ad: OCR missed the badge 3 checks in a row (~5 s) mid-ad."""
+    ctl, muter, clock = make(unmute_after_seconds=8)
+
+    def check(seen):
+        clock.t += 1.7  # Pi Zero check time
+        return ctl.update(seen)
+
+    assert [check(True), check(True)] == [None, "muted"]
+    assert [check(False) for _ in range(3)] == [None, None, None]  # 5.1 s of misses
+    assert muter.muted
+    check(True)  # badge read again
+    events = [check(False) for _ in range(5)]  # ad really over
+    assert events == [None, None, None, None, "unmuted"] and not muter.muted

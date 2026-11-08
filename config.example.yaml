@@ -23,6 +23,7 @@ detector:
 controller:
   mute_after: 2        # badge seen this many checks in a row -> mute
   unmute_after: 3      # badge gone this many checks in a row -> unmute
+  unmute_after_seconds: 8  # ...and for at least this many seconds
   max_mute_seconds: 240
 
 web:

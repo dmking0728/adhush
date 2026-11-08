@@ -33,7 +33,11 @@ class App:
         self.muter = build_muter(cfg["tv"])
         c = cfg["controller"]
         self.controller = MuteController(
-            self.muter, c["mute_after"], c["unmute_after"], c["max_mute_seconds"]
+            self.muter,
+            c["mute_after"],
+            c["unmute_after"],
+            c["max_mute_seconds"],
+            c.get("unmute_after_seconds", 8),
         )
         self.frame = None
         self.detection: Detection | None = None
@@ -52,6 +56,10 @@ class App:
         with self.lock:
             self.frame = frame
             self.detection = detection
+            if self.controller.muted_by_us and not detection.is_ad:
+                # Misses during an ad show what OCR read, to tune patterns.
+                texts = {r.name: r.text for r in detection.regions if r.text}
+                log.info("No badge this check while muted: %s", texts)
             event = self.controller.update(detection.is_ad)
             if event:
                 self._event(event)
