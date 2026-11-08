@@ -73,7 +73,31 @@ def preprocess(img, scale: float):
     # on a light page, so flip whenever the image is mostly dark.
     if binary.mean() < 127:
         binary = 255 - binary
-    return binary, contrast
+    return _flip_pills(binary), contrast
+
+
+def _flip_pills(binary):
+    """Flip solid boxes that have text punched out of them.
+
+    Max shows a dark "Ad" on a yellow pill beside white "3 of 3". After
+    thresholding, the pill is a solid black box with white letters inside,
+    which Tesseract can't read. Flipping inside the box makes it black-on-white
+    like the rest.
+    """
+    import cv2
+
+    ink = (binary == 0).astype("uint8")
+    n, _, stats, _ = cv2.connectedComponentsWithStats(ink, connectivity=8)
+    for i in range(1, n):
+        x, y, w, h, area = stats[i]
+        if w < 12 or h < 12 or w < 1.2 * h:
+            continue  # letters ("o", "0") are about as wide as tall; pills are wider
+        box = binary[y : y + h, x : x + w]
+        fill = area / (w * h)
+        holes = (box == 255).mean()
+        if fill > 0.7 and holes > 0.05:
+            binary[y : y + h, x : x + w] = 255 - box
+    return binary
 
 
 class TesseractOCR:

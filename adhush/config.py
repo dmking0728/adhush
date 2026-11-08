@@ -32,13 +32,16 @@ DEFAULTS: dict[str, Any] = {
         "check_interval": 1.0,  # seconds between checks (Pi Zero W is slow)
         "ocr_scale": 2.5,  # upscale crops before OCR; small text reads better
         "min_contrast": 12.0,  # skip OCR on near-blank crops (saves CPU)
-        "tesseract_psm": 6,
+        "tesseract_psm": 11,  # sparse text: a badge in an otherwise empty box
         # OCR drops spaces and mixes up 1/i/l, so "Ad 1 of 3" may come back as
         # "Adiof3". These patterns allow for that.
         "patterns": [
             r"\bad\b",  # "Ad", "AD"
             r"\bads?\s*[0-9il|]{1,2}\s*(of|/)\s*[0-9il|]{1,2}",  # "Ad 1 of 3", "Adiof3", "Ads 2/4"
             r"\bads?\s*[:\-]?\s*\d{1,2}:\d{2}",  # "Ad 0:30", "Ad0:30"
+            # A box that *starts* with "3 of 3" (Max's badge, when OCR misses
+            # the "Ad" pill). Anchored so "Season 1 of 3" doesn't count.
+            r"^[0-9il]{1,2}\s*[o0]f\s*[0-9il]{1,2}\b",
             r"\badvertisement\b",
             r"\bcommercial\b",
         ],

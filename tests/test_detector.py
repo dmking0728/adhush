@@ -14,6 +14,8 @@ matcher = TextMatcher(DEFAULTS["detector"]["patterns"])
         "Ad", "AD 0:30", "Ad 1 of 3 · 0:45", "Ads 2/4", "Ad • 1:15", "Advertisement", "ad|0:12",
         # real OCR misreads: lost spaces, 1 read as i or l
         "Adiof3 0:45", "Adlof2", "Ad0:30", "Ad 2of4",
+        # Max: yellow "Ad" pill + "3 of 3"
+        "3 of 3", "30f3", "“Ad> 3of3", "‘ad? 30f3", "r,,%\nAd, 30f3",
     ],
 )
 def test_ad_badges_match(text):
@@ -24,7 +26,8 @@ def test_ad_badges_match(text):
     "text",
     [
         "", "Bad Day", "Ready", "Adam", "Episode 4", "Skip Intro", "HEADLINE", "Up Next 0:15",
-        "adios", "Adam 1:30", "Season 1 of 3", "load 1 of 3",
+        "adios", "Adam 1:30", "Season 1 of 3", "load 1 of 3", "Episode 3 of 8",
+        "We've seen the United States and done it, so ready",
     ],
 )
 def test_normal_text_does_not_match(text):
@@ -71,3 +74,16 @@ def test_real_ocr_end_to_end():
     detector = AdDetector(cfg)
     assert detector.detect(fake_tv_frame("Ad 1 of 3  0:45")).is_ad
     assert not detector.detect(fake_tv_frame("Up Next")).is_ad
+
+
+@pytest.mark.skipif(not shutil.which("tesseract"), reason="tesseract not installed")
+def test_real_max_ad_frame():
+    """A real capture of Max's badge: dark "Ad" on a yellow pill, then "3 of 3"."""
+    from pathlib import Path
+
+    frame = cv2.imread(str(Path(__file__).with_name("max_ad_frame.jpg")))
+    cfg = dict(DEFAULTS["detector"], regions=[{"name": "max", "box": [0.04, 0.035, 0.16, 0.08]}])
+    det = AdDetector(cfg).detect(frame)
+    assert det.is_ad, det.regions[0].text
+    # And the "Ad" pill itself is read, not just "3 of 3"
+    assert TextMatcher([r"\bad\b"]).match(det.regions[0].text), det.regions[0].text
