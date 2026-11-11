@@ -101,9 +101,9 @@ EOF
 systemd-tmpfiles --create --prefix /var/log/journal >/dev/null 2>&1 || true
 
 systemctl daemon-reload
-systemctl daemon-reexec   # picks up the watchdog setting without a reboot
 systemctl restart systemd-journald
 systemctl enable --now adhush-netcheck.timer
 systemctl reload NetworkManager 2>/dev/null || true
 
-echo "Done. Wi-Fi power save off, watchdog on, Wi-Fi check every 2 min, logs kept."
+echo "Done. Wi-Fi power save off, Wi-Fi check every 2 min, logs kept."
+echo "The freeze watchdog turns on at the next restart (sudo reboot)."
