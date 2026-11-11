@@ -46,6 +46,9 @@ systemctl daemon-reload
 systemctl enable adhush.service
 systemctl restart adhush.service
 
+echo "==> Making the Pi recover by itself (Wi-Fi, freezes, logs)"
+"$REPO_DIR/scripts/pi-reliability.sh"
+
 IP="$(hostname -I | awk '{print $1}')"
 cat <<EOF
 
