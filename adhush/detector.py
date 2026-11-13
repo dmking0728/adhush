@@ -43,7 +43,10 @@ class Detection:
 _DIGIT = {"i": 1, "l": 1, "I": 1}
 _POSITION = re.compile(r"([0-9il])\s*[o0]f\s*([0-9il])(?![0-9])\W{0,4}(?:\d?\s*[:.])?\s*(\d{2})?", re.I)
 _STRONG = re.compile(
-    r"[0-9il]\s*[o0]f\s*[0-9il]|\bads?\s*[:\-]?\s*\d{1,2}:\d{2}|\badvertisement\b", re.I
+    # "1 of 3" (Max), "Ad 0:30", "1:04 Ad" (Hulu: countdown, then the Ad pill)
+    r"[0-9il]\s*[o0]f\s*[0-9il]|\bads?\s*[:\-]?\s*\d{1,2}:\d{2}|\d{1,2}:\d{2}\W{0,3}\s*ads?\b"
+    r"|\badvertisement\b",
+    re.I,
 )
 
 

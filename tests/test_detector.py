@@ -11,7 +11,7 @@ matcher = TextMatcher(DEFAULTS["detector"]["patterns"])
 @pytest.mark.parametrize(
     "text",
     [
-        "Ad", "AD 0:30", "Ad 1 of 3 · 0:45", "Ads 2/4", "Ad • 1:15", "Advertisement", "ad|0:12",
+        "Ad", "AD 0:30", "1:04 [Ad", "[0:57 Ad", "Ad 1 of 3 · 0:45", "Ads 2/4", "Ad • 1:15", "Advertisement", "ad|0:12",
         # real OCR misreads: lost spaces, 1 read as i or l
         "Adiof3 0:45", "Adlof2", "Ad0:30", "Ad 2of4",
         # Max: yellow "Ad" pill + "3 of 3"
@@ -107,3 +107,14 @@ def test_parse_badge(text, position, remaining):
     from adhush.detector import parse_badge
 
     assert parse_badge(text) == (position, remaining)
+
+
+@pytest.mark.skipif(not shutil.which("tesseract"), reason="tesseract not installed")
+def test_real_hulu_ad_frame():
+    """Hulu: countdown pill "1:04" then a gold "Ad" pill, top-right."""
+    from pathlib import Path
+
+    frame = cv2.imread(str(Path(__file__).with_name("hulu_ad_frame.jpg")))
+    cfg = dict(DEFAULTS["detector"], regions=[{"name": "hulu", "box": [0.86, 0.03, 0.115, 0.085]}])
+    det = AdDetector(cfg).detect(frame)
+    assert det.is_ad and det.strong, det.regions[0].text
